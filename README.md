@@ -1,4 +1,5 @@
 # Simulator SQL
+from **[KARPOV.COURSES](https://karpov.courses/simulator-sql)**
 
 Схема базы данных:
 ![logo](Database_Schema.jpg)
