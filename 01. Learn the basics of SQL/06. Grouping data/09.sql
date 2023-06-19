@@ -1,22 +1,24 @@
 /*
-А теперь отберите id только тех курьеров, которые в сентябре 2022 года успели доставить только по одному заказу.
-Таблица та же — courier_actions. Вновь выведите две колонки — id курьера и число доставленных заказов.
-Колонку с числом заказов назовите delivered_orders. Результат отсортируйте по возрастанию id курьера.
-Поля в результирующей таблице: courier_id, delivered_orders
+Вновь разбейте пользователей из таблицы users на группы по возрасту (возраст по-прежнему измеряем количеством полных лет),
+только теперь добавьте в группировку ещё и пол пользователя. Затем посчитайте количество пользователей в каждой половозрастной группе.
+Все NULL значения в колонке birth_date заранее отфильтруйте с помощью WHERE.
+Колонку с возрастом назовите age, а колонку с числом пользователей — users_count, имя колонки с полом оставьте без изменений.
+Преобразуйте значения в колонке с возрастом в формат INTEGER, чтобы возраст был выражен целым числом.
+Отсортируйте полученную таблицу сначала по колонке с возрастом по возрастанию, затем по колонке с полом — тоже по возрастанию.
+Поля в результирующей таблице: age, sex, users_count
 */
 
 SELECT
-  courier_id,
-  COUNT(order_id) AS delivered_orders
+  DATE_PART('year', AGE(current_date, birth_date))::INTEGER AS age,
+  sex,
+  COUNT(DISTINCT user_id) AS users_count
 FROM
-  courier_actions
+  users
 WHERE
-  action = 'deliver_order'
-  AND DATE_PART('month', time) = 9
-  AND DATE_PART('year', time) = 2022
+  birth_date IS NOT NULL
 GROUP BY
-  courier_id
-HAVING
-  COUNT(order_id) = 1
+  age,
+  sex
 ORDER BY
-  courier_id
+  age ASC,
+  sex ASC

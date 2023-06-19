@@ -1,16 +1,16 @@
 /*
-Посчитайте максимальный возраст пользователей мужского и женского пола в таблице users.
-Возраст измерьте количеством полных лет. Новую колонку с возрастом назовите max_age.
-Результат отсортируйте по новой колонке по возрастанию возраста.
-Поля в результирующей таблице: sex, max_age
+Посчитайте количество созданных и отменённых заказов в таблице user_actions.
+Новую колонку с числом заказов назовите orders_count.
+Результат отсортируйте по числу заказов по возрастанию.
+Поля в результирующей таблице: action, orders_count
 */
 
 SELECT
-  sex,
-  DATE_PART('year', MAX(AGE(current_date, birth_date))) AS max_age
+  action,
+  COUNT(action) AS orders_count
 FROM
-  users
+  user_actions
 GROUP BY
-  sex
+  action
 ORDER BY
-  max_age
+  orders_count

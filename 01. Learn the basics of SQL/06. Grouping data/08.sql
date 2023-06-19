@@ -1,22 +1,16 @@
 /*
-Из таблицы courier_actions отберите id трёх курьеров, доставивших наибольшее количество заказов в августе 2022 года.
-Выведите две колонки — id курьера и число доставленных заказов.
-Колонку с числом доставленных заказов назовите delivered_orders. Отсортируйте результат по убыванию delivered_orders.
-Поля в результирующей таблице: courier_id, delivered_orders
+Разбейте пользователей из таблицы users на группы по возрасту (возраст по-прежнему измеряем числом полных лет) и посчитайте количество пользователей каждого возраста.
+Колонку с возрастом назовите age, а колонку с числом пользователей — users_count. Преобразуйте значения в колонке с возрастом в формат INTEGER, чтобы возраст был выражен целым числом.
+Результат отсортируйте по колонке с возрастом по возрастанию.
+Поля в результирующей таблице: age, users_count
 */
 
 SELECT
-  courier_id,
-  COUNT(order_id) AS delivered_orders
+  DATE_PART('year', AGE(current_date, birth_date))::INTEGER AS age,
+  COUNT(DISTINCT user_id) AS users_count
 FROM
-  courier_actions
-WHERE
-  action = 'deliver_order'
-  AND DATE_PART('month', time) = 8
-  AND DATE_PART('year', time) = 2022
+  users
 GROUP BY
-  courier_id
+  age
 ORDER BY
-  delivered_orders DESC
-LIMIT
-  3
+  age
