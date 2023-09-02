@@ -1,37 +1,19 @@
 /*
-Из таблицы couriers выведите всю информацию о курьерах,
-которые в сентябре 2022 года доставили 30 и более заказов.
-Результат отсортируйте по возрастанию id курьера.
-Поля в результирующей таблице: courier_id, birth_date, sex
+Выясните, есть ли в таблице courier_actions такие заказы,
+которые были приняты курьерами, но не были созданы пользователями.
+Посчитайте количество таких заказов.
+Колонку с числом заказов назовите orders_count.
+Поле в результирующей таблице: orders_count
 */
 
-WITH table_1 AS (
-  SELECT
-    courier_id
-  FROM
-    courier_actions
-  WHERE
-    DATE_PART('month', time) = 9
-    AND DATE_PART('year', time) = 2022
-    AND action = 'deliver_order'
-  GROUP BY
-    courier_id
-  HAVING
-    count(distinct order_id) >= 30
-)
-
 SELECT
-  courier_id,
-  birth_date,
-  sex
+  COUNT(DISTINCT order_id) AS orders_count
 FROM
-  couriers
+  courier_actions
 WHERE
-  courier_id IN (
+  order_id NOT IN (
     SELECT
-      *
+      DISTINCT order_id
     FROM
-      table_1
+      user_actions
   )
-ORDER BY
-  courier_id

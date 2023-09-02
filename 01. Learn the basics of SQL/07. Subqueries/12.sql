@@ -1,17 +1,32 @@
 /*
-Выберите все колонки из таблицы orders, но в качестве последней колонки укажите функцию unnest,
-применённую к колонке product_ids. Новую колонку назовите product_id.
-Выведите только первые 100 записей результирующей таблицы.
-Посмотрите на результат работы функции unnest и постарайтесь разобраться, что произошло с исходной таблицей.
-Поля в результирующей таблице: creation_time, order_id, product_ids, product_id
+Определите количество отменённых заказов в таблице courier_actions и выясните,
+есть ли в этой таблице такие заказы, которые были отменены пользователями,
+но при этом всё равно были доставлены. Посчитайте количество таких заказов.
+Колонку с отменёнными заказами назовите orders_canceled. Колонку с отменёнными,
+но доставленными заказами назовите orders_canceled_and_delivered. 
+Поля в результирующей таблице: orders_canceled, orders_canceled_and_delivered
+
+Пояснение:
+Для решения задачи пригодится оператор FILTER, который мы рассматривали в этом уроке.
 */
 
 SELECT
-  creation_time,
-  order_id,
-  product_ids,
-  UNNEST(product_ids) AS product_id
+  COUNT(order_id) FILTER (
+    WHERE
+      action = 'accept_order'
+  ) AS orders_canceled,
+  COUNT(order_id) FILTER (
+    WHERE
+      action = 'deliver_order'
+  ) AS orders_canceled_and_delivered
 FROM
-  orders
-LIMIT
-  100
+  courier_actions
+WHERE
+  order_id IN (
+    SELECT
+      order_id
+    FROM
+      user_actions
+    WHERE
+      action = 'cancel_order'
+  )

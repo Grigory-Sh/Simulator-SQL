@@ -1,46 +1,25 @@
 /*
-Из таблицы orders выведите id и содержимое заказов,
-которые включают хотя бы один из пяти самых дорогих товаров,
-доступных в нашем сервисе. Результат отсортируйте по возрастанию id заказа.
-Поля в результирующей таблице: order_id, product_ids
+Отберите из таблицы users пользователей мужского пола,
+которые старше всех пользователей женского пола.
+Выведите две колонки: id пользователя и дату рождения.
+Результат отсортируйте по возрастанию id пользователя.
+Поля в результирующей таблице: user_id, birth_date
 */
 
-WITH table_1 AS (
-  SELECT
-    order_id,
-    UNNEST(product_ids) AS product_id
-  FROM
-    orders
-),
-table_2 AS (
-  SELECT
-    DISTINCT order_id
-  FROM
-    table_1
-  WHERE
-    product_id IN (
-      SELECT
-        product_id
-      FROM
-        products
-      ORDER BY
-        price DESC
-      LIMIT
-        5
-    )
-)
-
 SELECT
-  order_id,
-  product_ids
+  user_id,
+  birth_date
 FROM
-  orders
+  users
 WHERE
-  order_id IN (
+  sex = 'male'
+  and birth_date < (
     SELECT
-      *
+      MIN(birth_date) AS birth_date
     FROM
-      table_2
+      users
+    WHERE
+      sex = 'female'
   )
 ORDER BY
-  order_id ASC
+  user_id
