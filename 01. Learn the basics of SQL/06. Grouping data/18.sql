@@ -17,31 +17,43 @@
 */
 
 SELECT
-  DATE_PART('isodow', time) :: INTEGER AS weekday_number,
-  to_char(time, 'Dy') AS weekday,
-  COUNT(DISTINCT order_id) AS created_orders,
-  COUNT(order_id) FILTER (
+  date_part('isodow', time) :: int as weekday_number,
+  to_char(time, 'Dy') as weekday,
+  count(distinct order_id) filter (
+    WHERE
+      action = 'create_order'
+  ) as created_orders,
+  count(order_id) filter (
     WHERE
       action = 'cancel_order'
-  ) AS canceled_orders,
-  COUNT(DISTINCT order_id) - COUNT(order_id) FILTER (
+  ) as canceled_orders,
+  count(distinct order_id) filter (
+    WHERE
+      action = 'create_order'
+  ) - count(order_id) filter (
     WHERE
       action = 'cancel_order'
-  ) AS actual_orders,
-  ROUND(
+  ) as actual_orders,
+  round(
     (
-      COUNT(DISTINCT order_id) - COUNT(order_id) FILTER (
+      count(distinct order_id) filter (
+        WHERE
+          action = 'create_order'
+      ) - count(order_id) filter (
         WHERE
           action = 'cancel_order'
-      ) :: NUMERIC
-    ) / COUNT(DISTINCT order_id),
+      )
+    ) :: decimal / count(distinct order_id) filter (
+      WHERE
+        action = 'create_order'
+    ),
     3
-  ) AS success_rate
+  ) as success_rate
 FROM
   user_actions
 WHERE
-  time >= DATE '2022-08-24'
-  AND time < DATE '2022-09-07'
+  time >= '2022-08-24'
+  AND time < '2022-09-07'
 GROUP BY
   weekday_number,
   weekday
