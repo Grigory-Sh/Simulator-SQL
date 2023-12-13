@@ -1,86 +1,56 @@
 /*
-По таблицам courier_actions , orders и products определите 10 самых популярных товаров, доставленных в сентябре 2022 года.
-Самыми популярными товарами будем считать те, которые встречались в заказах чаще всего.
-Если товар встречается в одном заказе несколько раз (было куплено несколько единиц товара), то при подсчёте учитываем только одну единицу товара.
-Выведите наименования товаров и сколько раз они встречались в заказах. Новую колонку с количеством покупок товара назовите times_purchased. 
-Поля в результирующей таблице: name, times_purchased
+По данным таблиц orders, products и user_actions посчитайте ежедневную выручку сервиса.
+Под выручкой будем понимать стоимость всех реализованных товаров, содержащихся в заказах.
+Колонку с датой назовите date, а колонку со значением выручки — revenue.
+В расчётах учитывайте только неотменённые заказы.
+Результат отсортируйте по возрастанию даты.
+Поля в результирующей таблице: date, revenue
 */
 
-WITH table1 AS (
-  SELECT
-    order_id
-  FROM
-    courier_actions
-  WHERE
-    action = 'deliver_order'
-    AND DATE_PART('year', time) = 2022
-    AND DATE_PART('month', time) = 09
-),
-table2 AS (
-  SELECT
-    order_id,
-    UNNEST(product_ids) AS product_id
-  FROM
-    orders
-),
-table3 AS (
-  SELECT
-    DISTINCT *
-  FROM
-    table2
-  WHERE
-    order_id IN (
-      SELECT
-        *
-      FROM
-        table1
-    )
-),
-table4 AS (
-  SELECT
-    product_id,
-    COUNT(order_id) AS times_purchased
-  FROM
-    table3
-  GROUP BY
-    product_id
-  ORDER BY
-    times_purchased DESC
-  LIMIT
-    10
-)
-
 SELECT
-  name,
-  times_purchased
-FROM
-  products
-  RIGHT JOIN table4 USING (product_id)
-ORDER BY
-  times_purchased DESC
-
--- OR
-
-SELECT
-  name,
-  count(product_id) AS times_purchased
+  date,
+  SUM(price) AS revenue
 FROM
   (
     SELECT
-      DISTINCT order_id,
-      unnest(product_ids) AS product_id
+      date,
+      t1.product_id,
+      price
     FROM
-      orders
-  ) AS t
-  LEFT JOIN products USING (product_id)
-  RIGHT JOIN courier_actions USING (order_id)
-WHERE
-  action = 'deliver_order'
-  AND date_part('month', time) = 9
-  AND date_part('year', time) = 2022
+      (
+        SELECT
+          creation_time :: DATE AS date,
+          UNNEST(product_ids) AS product_id
+        FROM
+          orders
+        WHERE
+          order_id NOT IN (
+            SELECT
+              order_id
+            FROM
+              user_actions
+            WHERE
+              action = 'cancel_order'
+          )
+      ) AS t1
+      LEFT JOIN products AS t2 ON t1.product_id = t2.product_id
+  ) AS t3
 GROUP BY
-  name
+  date
 ORDER BY
-  times_purchased DESC
-LIMIT
-  10
+  date
+
+-- OR
+
+SELECT date(creation_time) as date,
+       sum(price) as revenue
+FROM   (SELECT order_id,
+               creation_time,
+               product_ids,
+               unnest(product_ids) as product_id
+        FROM   orders
+        WHERE  order_id not in (SELECT order_id
+                                FROM   user_actions
+                                WHERE  action = 'cancel_order')) t1
+    LEFT JOIN products using(product_id)
+GROUP BY date

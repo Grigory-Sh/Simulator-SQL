@@ -1,66 +1,62 @@
 /*
-С помощью оконной функции отберите из таблицы courier_actions всех курьеров, которые работают в нашей
-компании 10 и более дней. Также рассчитайте, сколько заказов они уже успели доставить за всё время работы.
-Будем считать, что наш сервис предлагает самые выгодные условия труда и поэтому за весь анализируемый
-период ни один курьер не уволился из компании. Возможные перерывы между сменами не учитывайте — для нас
-важна только разница во времени между первым действием курьера и текущей отметкой времени. Текущей
-отметкой времени, относительно которой необходимо рассчитывать продолжительность работы курьера, считайте
-время последнего действия в таблице courier_actions. Учитывайте только целые дни, прошедшие с первого
-выхода курьера на работу (часы и минуты не учитывайте).
-В результат включите три колонки: id курьера, продолжительность работы в днях и число доставленных заказов.
-Две новые колонки назовите соответственно days_employed и delivered_orders.
-Результат отсортируйте сначала по убыванию количества отработанных дней, затем по возрастанию id курьера.
-Поля в результирующей таблице: courier_id, days_employed, delivered_orders
+Для каждой записи в таблице user_actions с помощью оконных функций и предложения FILTER посчитайте,
+сколько заказов сделал и сколько отменил каждый пользователь на момент совершения нового действия.
+Иными словами, для каждого пользователя в каждый момент времени посчитайте две накопительные суммы —
+числа оформленных и числа отменённых заказов. Если пользователь оформляет заказ, то число оформленных
+им заказов увеличивайте на 1, если отменяет — увеличивайте на 1 количество отмен.
+Колонки с накопительными суммами числа оформленных и отменённых заказов назовите соответственно
+created_orders и canceled_orders. На основе этих двух колонок для каждой записи пользователя
+посчитайте показатель cancel_rate, т.е. долю отменённых заказов в общем количестве оформленных заказов.
+Значения показателя округлите до двух знаков после запятой. Колонку с ним назовите cancel_rate.
+В результате у вас должны получиться три новые колонки с динамическими показателями,
+которые изменяются во времени с каждым новым действием пользователя.
+В результирующей таблице отразите все колонки из исходной таблицы вместе с новыми колонками.
+Отсортируйте результат по колонкам user_id, order_id, time — по возрастанию значений в каждой.
+Добавьте в запрос оператор LIMIT и выведите только первые 1000 строк результирующей таблицы.
+Поля в результирующей таблице:
+user_id, order_id, action, time, created_orders, canceled_orders, cancel_rate
 */
 
 SELECT
-  courier_id,
-  days_employed,
-  delivered_orders
+  user_id,
+  order_id,
+  action,
+  time,
+  created_orders,
+  canceled_orders,
+  ROUND(
+    canceled_orders :: DECIMAL / created_orders :: DECIMAL,
+    2
+  ) AS cancel_rate
 FROM
   (
     SELECT
-      courier_id,
-      DATE_PART(
-        'day',
-        AGE(
-          (
-            SELECT
-              MAX(time)
-            FROM
-              courier_actions
-          ),
-          MIN(time)
-        )
-      ) AS days_employed,
-      COUNT(order_id) FILTER (
+      user_id,
+      order_id,
+      action,
+      time,
+      COUNT(order_id) FILTER(
         WHERE
-          action = 'deliver_order'
-      ) AS delivered_orders
+          action = 'create_order'
+      ) OVER(
+        PARTITION BY user_id
+        ORDER BY
+          time
+      ) AS created_orders,
+      COUNT(order_id) FILTER(
+        WHERE
+          action = 'cancel_order'
+      ) OVER(
+        PARTITION BY user_id
+        ORDER BY
+          time
+      ) AS canceled_orders
     FROM
-      courier_actions
-    GROUP BY
-      courier_id
+      user_actions
   ) AS t
-WHERE
-  days_employed > 9
 ORDER BY
-  days_employed DESC,
-  courier_id ASC
-
--- OR
-
-SELECT courier_id,
-       days_employed,
-       delivered_orders
-FROM   (SELECT courier_id,
-               delivered_orders,
-               date_part('days', max(max_time) OVER() - min_time) as days_employed
-        FROM   (SELECT courier_id,
-                       count(distinct order_id) filter (WHERE action = 'deliver_order') as delivered_orders,
-                       min(time) as min_time,
-                       max(time) as max_time
-                FROM   courier_actions
-                GROUP BY courier_id) t1) t2
-WHERE  days_employed >= 10
-ORDER BY days_employed desc, courier_id
+  user_id,
+  order_id,
+  time
+LIMIT
+  1000

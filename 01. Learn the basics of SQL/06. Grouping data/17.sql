@@ -1,45 +1,34 @@
 /*
-Для каждого пользователя в таблице user_actions посчитайте общее количество оформленных заказов и долю отменённых заказов.
-Новые колонки назовите соответственно orders_count и cancel_rate. Колонку с долей отменённых заказов округлите до двух знаков после запятой.
-В результат включите только тех пользователей, которые оформили больше трёх заказов и у которых показатель cancel_rate составляет не менее 0.5.
-Результат отсортируйте по возрастанию id пользователя.
-Поля в результирующей таблице: user_id, orders_count, cancel_rate
+Разбейте пользователей из таблицы users на 4 возрастные группы:
+от 19 до 24 лет;
+от 25 до 29 лет;
+от 30 до 35 лет;
+от 36 до 41 года.
+Посчитайте число пользователей, попавших в каждую возрастную группу.
+Группы назовите соответственно «19-24», «25-29», «30-35», «36-41» (без кавычек).
+Выведите наименования групп и число пользователей в них. Колонку с наименованием
+групп назовите group_age, а колонку с числом пользователей — users_count.
+Отсортируйте полученную таблицу по колонке с наименованием групп по возрастанию.
+Поля в результирующей таблице: group_age, users_count
 */
 
 SELECT
-  user_id,
-  COUNT(order_id) FILTER (
-    WHERE
-      action = 'create_order'
-  ) AS orders_count,
-  ROUND(
-    COUNT(order_id) FILTER (
-      WHERE
-        action = 'cancel_order'
-    ) :: DECIMAL / COUNT(order_id) FILTER (
-      WHERE
-        action = 'create_order'
-    ) :: DECIMAL,
-    2
-  ) AS cancel_rate
+  CASE
+    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 19
+    AND 24 THEN '19-24'
+    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 25
+    AND 29 THEN '25-29'
+    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 30
+    AND 35 THEN '30-35'
+    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 36
+    AND 41 THEN '36-41'
+  END AS group_age,
+  COUNT(DISTINCT user_id) AS users_count
 FROM
-  user_actions
+  users
+WHERE
+  birth_date IS NOT NULL
 GROUP BY
-  user_id
-HAVING
-  ROUND(
-    COUNT(order_id) FILTER (
-      WHERE
-        action = 'cancel_order'
-    ) :: DECIMAL / COUNT(order_id) FILTER (
-      WHERE
-        action = 'create_order'
-    ) :: DECIMAL,
-    2
-  ) >= 0.5
-  AND COUNT(order_id) FILTER (
-    WHERE
-      action = 'create_order'
-  ) > 3
+  group_age
 ORDER BY
-  user_id ASC
+  group_age

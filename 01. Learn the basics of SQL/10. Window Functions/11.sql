@@ -1,62 +1,52 @@
 /*
-Для каждой записи в таблице user_actions с помощью оконных функций и предложения FILTER посчитайте,
-сколько заказов сделал и сколько отменил каждый пользователь на момент совершения нового действия.
-Иными словами, для каждого пользователя в каждый момент времени посчитайте две накопительные суммы —
-числа оформленных и числа отменённых заказов. Если пользователь оформляет заказ, то число оформленных
-им заказов увеличивайте на 1, если отменяет — увеличивайте на 1 количество отмен.
-Колонки с накопительными суммами числа оформленных и отменённых заказов назовите соответственно
-created_orders и canceled_orders. На основе этих двух колонок для каждой записи пользователя
-посчитайте показатель cancel_rate, т.е. долю отменённых заказов в общем количестве оформленных заказов.
-Значения показателя округлите до двух знаков после запятой. Колонку с ним назовите cancel_rate.
-В результате у вас должны получиться три новые колонки с динамическими показателями,
-которые изменяются во времени с каждым новым действием пользователя.
-В результирующей таблице отразите все колонки из исходной таблицы вместе с новыми колонками.
-Отсортируйте результат по колонкам user_id, order_id, time — по возрастанию значений в каждой.
-Добавьте в запрос оператор LIMIT и выведите только первые 1000 строк результирующей таблицы.
-Поля в результирующей таблице:
-user_id, order_id, action, time, created_orders, canceled_orders, cancel_rate
+К запросу, полученному на предыдущем шаге, примените оконную функцию и для каждого дня посчитайте долю первых и повторных заказов.
+Сохраните структуру полученной ранее таблицы и добавьте только одну новую колонку с посчитанными значениями.
+Колонку с долей заказов каждой категории назовите orders_share. Значения в полученном столбце округлите до двух знаков после запятой.
+В результат также включите количество заказов в группах, посчитанное на предыдущем шаге.
+В расчётах по-прежнему учитывайте только неотменённые заказы.
+Результат отсортируйте сначала по возрастанию даты, затем по возрастанию значений в колонке с типом заказа.
+Поля в результирующей таблице: date, order_type, orders_count, orders_share
 */
 
 SELECT
-  user_id,
-  order_id,
-  action,
-  time,
-  created_orders,
-  canceled_orders,
+  date,
+  order_type,
+  orders_count,
   ROUND(
-    canceled_orders :: DECIMAL / created_orders :: DECIMAL,
+    orders_count / SUM(orders_count) OVER (PARTITION BY date),
     2
-  ) AS cancel_rate
+  ) AS orders_share
 FROM
   (
     SELECT
-      user_id,
-      order_id,
-      action,
-      time,
-      COUNT(order_id) FILTER(
-        WHERE
-          action = 'create_order'
-      ) OVER(
-        PARTITION BY user_id
-        ORDER BY
-          time
-      ) AS created_orders,
-      COUNT(order_id) FILTER(
-        WHERE
-          action = 'cancel_order'
-      ) OVER(
-        PARTITION BY user_id
-        ORDER BY
-          time
-      ) AS canceled_orders
+      date,
+      order_type,
+      COUNT(order_type) AS orders_count
     FROM
-      user_actions
-  ) AS t
-ORDER BY
-  user_id,
-  order_id,
-  time
-LIMIT
-  1000
+      (
+        SELECT
+          user_id,
+          time :: DATE AS date,
+          CASE
+            WHEN MIN(time) OVER (PARTITION BY user_id) = time THEN 'Первый'
+            ELSE 'Повторный'
+          END AS order_type
+        FROM
+          user_actions
+        WHERE
+          order_id NOT IN (
+            SELECT
+              order_id
+            FROM
+              user_actions
+            WHERE
+              action = 'cancel_order'
+          )
+      ) AS t1
+    GROUP BY
+      date,
+      order_type
+    ORDER BY
+      date,
+      order_type
+  ) AS t2

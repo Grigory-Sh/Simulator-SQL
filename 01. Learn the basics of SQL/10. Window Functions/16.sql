@@ -1,12 +1,21 @@
 /*
-С помощью оконной функции рассчитайте медианную стоимость всех заказов из таблицы orders, оформленных в нашем сервисе.
-В качестве результата выведите одно число. Колонку с ним назовите median_price. Отменённые заказы не учитывайте.
-Поле в результирующей таблице: median_price
+На основе информации в таблицах orders и products рассчитайте стоимость каждого заказа,
+ежедневную выручку сервиса и долю стоимости каждого заказа в ежедневной выручке,
+выраженную в процентах. В результат включите следующие колонки: id заказа, время
+создания заказа, стоимость заказа, выручку за день, в который был совершён заказ,
+а также долю стоимости заказа в выручке за день, выраженную в процентах.
+При расчёте долей округляйте их до трёх знаков после запятой.
+Результат отсортируйте сначала по убыванию даты совершения заказа (именно даты, а не времени),
+потом по убыванию доли заказа в выручке за день, затем по возрастанию id заказа.
+При проведении расчётов отменённые заказы не учитывайте.
+Поля в результирующей таблице:
+order_id, creation_time, order_price, daily_revenue, percentage_of_daily_revenue
 */
 
 WITH t1 AS (
   SELECT
     order_id,
+    creation_time,
     UNNEST(product_ids) AS product_id
   FROM
     orders
@@ -23,6 +32,7 @@ WITH t1 AS (
 t2 AS (
   SELECT
     order_id,
+    creation_time,
     price
   FROM
     t1
@@ -30,64 +40,60 @@ t2 AS (
 ),
 t3 AS (
   SELECT
-    SUM(price) AS order_price,
-    ROW_NUMBER() OVER (
-      ORDER BY
-        SUM(price)
-    ) AS number
+    order_id,
+    creation_time,
+    SUM(price) AS order_price
   FROM
     t2
   GROUP BY
-    order_id
+    order_id,
+    creation_time
+),
+t4 AS (
+  SELECT
+    order_id,
+    creation_time,
+    order_price,
+    SUM(order_price) OVER (PARTITION BY creation_time :: DATE) daily_revenue
+  FROM
+    t3
 )
 
 SELECT
-  DISTINCT CASE
-    WHEN (
-      SELECT
-        COUNT(order_price)
-      FROM
-        t3
-    ) % 2 = 0 THEN (
-      (
-        SELECT
-          order_price
-        FROM
-          t3
-        WHERE
-          number = (
-            SELECT
-              COUNT(order_price)
-            FROM
-              t3
-          ) / 2
-      ) + (
-        SELECT
-          order_price
-        FROM
-          t3
-        WHERE
-          number = (
-            SELECT
-              COUNT(order_price)
-            FROM
-              t3
-          ) / 2 + 1
-      )
-    ) :: DECIMAL / 2
-    ELSE (
-      SELECT
-        order_price
-      FROM
-        t3
-      WHERE
-        number = (
-          SELECT
-            COUNT(order_price)
-          FROM
-            t3
-        ) / 2 + 1
-    )
-  END AS median_price
+  order_id,
+  creation_time,
+  order_price,
+  daily_revenue,
+  ROUND(
+    order_price :: DECIMAL / daily_revenue :: DECIMAL * 100,
+    3
+  ) AS percentage_of_daily_revenue
 FROM
-  t3
+  t4
+ORDER BY
+  creation_time :: DATE DESC,
+  percentage_of_daily_revenue DESC,
+  order_id ASC
+
+-- OR
+
+SELECT order_id,
+       creation_time,
+       order_price,
+       sum(order_price) OVER(PARTITION BY date(creation_time)) as daily_revenue,
+       round(100 * order_price::decimal / sum(order_price) OVER(PARTITION BY date(creation_time)),
+             3) as percentage_of_daily_revenue
+FROM   (SELECT order_id,
+               creation_time,
+               sum(price) as order_price
+        FROM   (SELECT order_id,
+                       creation_time,
+                       product_ids,
+                       unnest(product_ids) as product_id
+                FROM   orders
+                WHERE  order_id not in (SELECT order_id
+                                        FROM   user_actions
+                                        WHERE  action = 'cancel_order')) t3
+            LEFT JOIN products using(product_id)
+        GROUP BY order_id, creation_time) t
+ORDER BY date(creation_time) desc, percentage_of_daily_revenue desc, order_id

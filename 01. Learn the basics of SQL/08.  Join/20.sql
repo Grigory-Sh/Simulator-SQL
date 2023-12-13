@@ -1,110 +1,109 @@
 /*
-Выясните, какие пары товаров покупают вместе чаще всего.
-Пары товаров сформируйте на основе таблицы с заказами.
-Отменённые заказы не учитывайте. В качестве результата выведите две колонки —
-колонку с парами наименований товаров и колонку со значениями, показывающими,
-сколько раз конкретная пара встретилась в заказах пользователей.
-Колонки назовите соответственно pair и count_pair.
-Пары товаров должны быть представлены в виде списков из двух наименований.
-Пары товаров внутри списков должны быть отсортированы в порядке возрастания наименования.
-Результат отсортируйте сначала по убыванию частоты встречаемости пары товаров в заказах,
-затем по колонке pair — по возрастанию.
-Поля в результирующей таблице: pair, count_pair
+Выясните, кто заказывал и доставлял самые большие заказы. Самыми большими считайте заказы с наибольшим числом товаров.
+Выведите id заказа, id пользователя и id курьера. Также в отдельных колонках укажите возраст пользователя и возраст курьера.
+Возраст измерьте числом полных лет, как мы делали в прошлых уроках.
+Считайте его относительно последней даты в таблице user_actions — как для пользователей, так и для курьеров.
+Колонки с возрастом назовите user_age и courier_age. Результат отсортируйте по возрастанию id заказа.
+Поля в результирующей таблице: order_id, user_id, user_age, courier_id, courier_age
 */
 
 WITH t1 AS (
   SELECT
-    order_id,
-    product_ids
+    order_id
   FROM
     orders
   WHERE
-    order_id IN (
+    ARRAY_LENGTH(product_ids, 1) = (
       SELECT
-        order_id
+        MAX(ARRAY_LENGTH(product_ids, 1))
       FROM
-        user_actions
-      WHERE
-        order_id NOT IN (
-          SELECT
-            order_id
-          FROM
-            user_actions
-          WHERE
-            action = 'cancel_order'
-        )
+        orders
     )
 ),
 t2 AS (
   SELECT
     DISTINCT order_id,
-    UNNEST(product_ids) AS product_id
+    user_id,
+    courier_id
   FROM
     t1
+    LEFT JOIN user_actions USING (order_id)
+    LEFT JOIN courier_actions USING (order_id)
 ),
 t3 AS (
   SELECT
-    order_id,
-    name
+    MAX(time)
   FROM
-    t2
-    LEFT JOIN products USING (product_id)
+    user_actions
 ),
 t4 AS (
   SELECT
-    order_id,
-    A.name AS name_1,
-    B.name AS name_2
+    user_id,
+    DATE_PART(
+      'year',
+      AGE(
+        (
+          SELECT
+            *
+          FROM
+            t3
+        ),
+        birth_date
+      )
+    ) AS user_age
   FROM
-    t3 AS A
-    INNER JOIN t3 AS B USING (order_id)
-  WHERE
-    A.name != B.name
+    users
 ),
 t5 AS (
   SELECT
-    order_id,
-    CASE
-      WHEN name_1 > name_2 THEN STRING_TO_ARRAY(name_2 || ', ' || name_1, ', ')
-      ELSE STRING_TO_ARRAY(name_1 || ', ' || name_2, ', ')
-    END AS pair
+    courier_id,
+    DATE_PART(
+      'year',
+      AGE(
+        (
+          SELECT
+            *
+          FROM
+            t3
+        ),
+        birth_date
+      )
+    ) AS courier_age
   FROM
-    t4
+    couriers
 )
-
 SELECT
-  pair,
-  COUNT(order_id) / 2 AS count_pair
+  order_id,
+  user_id,
+  user_age,
+  courier_id,
+  courier_age
 FROM
-  t5
-GROUP BY
-  pair
-ORDER BY
-  count_pair DESC,
-  pair ASC
+  t2
+  LEFT JOIN t4 USING (user_id)
+  LEFT JOIN t5 USING (courier_id)
 
--- OR
+  -- OR
 
-with main_table as (SELECT DISTINCT order_id,
-                                    product_id,
-                                    name
-                    FROM   (SELECT order_id,
-                                   unnest(product_ids) as product_id
-                            FROM   orders
-                            WHERE  order_id not in (SELECT order_id
-                                                    FROM   user_actions
-                                                    WHERE  action = 'cancel_order')
-                               and order_id in (SELECT order_id
-                                             FROM   user_actions
-                                             WHERE  action = 'create_order')) t join products using(product_id)
-                    ORDER BY order_id, name)
-SELECT pair,
-       count(order_id) as count_pair
-FROM   (SELECT DISTINCT a.order_id,
-                        case when a.name > b.name then string_to_array(concat(b.name, '+', a.name), '+')
-                             else string_to_array(concat(a.name, '+', b.name), '+') end as pair
-        FROM   main_table a join main_table b
-                ON a.order_id = b.order_id and
-                   a.name != b.name) t
-GROUP BY pair
-ORDER BY count_pair desc, pair
+  with order_id_large_size as (SELECT order_id
+                             FROM   orders
+                             WHERE  array_length(product_ids, 1) = (SELECT max(array_length(product_ids, 1))
+                                                                    FROM   orders))
+SELECT DISTINCT order_id,
+                user_id,
+                date_part('year', age((SELECT max(time)
+                       FROM   user_actions), users.birth_date)) as user_age, courier_id, date_part('year', age((SELECT max(time)
+                                                                                         FROM   user_actions), couriers.birth_date)) as courier_age
+FROM   (SELECT order_id,
+               user_id
+        FROM   user_actions
+        WHERE  order_id in (SELECT *
+                            FROM   order_id_large_size)) t1
+    LEFT JOIN (SELECT order_id,
+                      courier_id
+               FROM   courier_actions
+               WHERE  order_id in (SELECT *
+                                   FROM   order_id_large_size)) t2 using(order_id)
+    LEFT JOIN users using(user_id)
+    LEFT JOIN couriers using(courier_id)
+ORDER BY order_id

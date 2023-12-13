@@ -1,41 +1,33 @@
 /*
-Произведите замену списков с id товаров из таблицы orders на списки с наименованиями товаров.
-Наименования возьмите из таблицы products. Колонку с новыми списками наименований назовите product_names. 
-Добавьте в запрос оператор LIMIT и выведите только первые 1000 строк результирующей таблицы.
-Поля в результирующей таблице: order_id, product_names
+По таблицам orders и courier_actions определите id десяти заказов, которые доставляли дольше всего.
+Поле в результирующей таблице: order_id
 */
 
 SELECT
-  order_id,
-  ARRAY_AGG(name) AS product_names
+  order_id
 FROM
   (
     SELECT
       order_id,
-      product_id,
-      name
+      creation_time,
+      time AS deliver_time
     FROM
-      (
-        SELECT
-          order_id,
-          UNNEST(product_ids) AS product_id
-        FROM
-          orders
-      ) AS t1
-      LEFT JOIN products USING (product_id)
-  ) AS t2
-GROUP BY
-  order_id
+      orders FULL
+      JOIN courier_actions USING (order_id)
+    WHERE
+      action = 'deliver_order'
+  ) AS t
 ORDER BY
-  order_id ASC
+  deliver_time - creation_time DESC
 LIMIT
-  1000
+  10
 
 -- OR
 
-SELECT order_id,
-       array_agg(name) as product_names
-FROM   (SELECT order_id,
-               unnest(product_ids) as product_id
-        FROM   orders) t join products using(product_id)
-GROUP BY order_id limit 1000
+SELECT order_id
+FROM   orders
+    RIGHT JOIN (SELECT order_id,
+                       time as deliver_time
+                FROM   courier_actions
+                WHERE  action = 'deliver_order') as t using (order_id)
+ORDER BY deliver_time - creation_time desc limit 10

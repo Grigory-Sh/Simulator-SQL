@@ -1,90 +1,66 @@
 /*
-На основе информации в таблицах orders и products рассчитайте ежедневную выручку сервиса и отразите её в колонке daily_revenue.
-Затем с помощью оконных функций и функций смещения посчитайте ежедневный прирост выручки. Прирост выручки отразите как в абсолютных значениях, так
-и в % относительно предыдущего дня. Колонку с абсолютным приростом назовите revenue_growth_abs, а колонку с относительным — revenue_growth_percentage.
-Для самого первого дня укажите прирост равным 0 в обеих колонках. При проведении расчётов отменённые заказы не учитывайте. Результат отсортируйте по колонке с датами по возрастанию.
-Метрики daily_revenue, revenue_growth_abs, revenue_growth_percentage округлите до одного знака при помощи ROUND().
-Поля в результирующей таблице: date, daily_revenue, revenue_growth_abs, revenue_growth_percentage
+С помощью оконной функции отберите из таблицы courier_actions всех курьеров, которые работают в нашей
+компании 10 и более дней. Также рассчитайте, сколько заказов они уже успели доставить за всё время работы.
+Будем считать, что наш сервис предлагает самые выгодные условия труда и поэтому за весь анализируемый
+период ни один курьер не уволился из компании. Возможные перерывы между сменами не учитывайте — для нас
+важна только разница во времени между первым действием курьера и текущей отметкой времени. Текущей
+отметкой времени, относительно которой необходимо рассчитывать продолжительность работы курьера, считайте
+время последнего действия в таблице courier_actions. Учитывайте только целые дни, прошедшие с первого
+выхода курьера на работу (часы и минуты не учитывайте).
+В результат включите три колонки: id курьера, продолжительность работы в днях и число доставленных заказов.
+Две новые колонки назовите соответственно days_employed и delivered_orders.
+Результат отсортируйте сначала по убыванию количества отработанных дней, затем по возрастанию id курьера.
+Поля в результирующей таблице: courier_id, days_employed, delivered_orders
 */
 
-WITH t1 AS (
-  SELECT
-    order_id,
-    creation_time,
-    UNNEST(product_ids) AS product_id
-  FROM
-    orders
-  WHERE
-    order_id NOT IN (
-      SELECT
-        order_id
-      FROM
-        user_actions
-      WHERE
-        action = 'cancel_order'
-    )
-),
-t2 AS (
-  SELECT
-    order_id,
-    creation_time :: DATE AS date,
-    price
-  FROM
-    t1
-    LEFT JOIN products USING (product_id)
-),
-t3 AS (
-  SELECT
-    date,
-    SUM(price) AS daily_revenue
-  FROM
-    t2
-  GROUP BY
-    date
-),
-t4 AS (
-  SELECT
-    date,
-    daily_revenue,
-    COALESCE(daily_revenue - LAG(daily_revenue, 1) OVER (), 0) AS revenue_growth_abs
-  FROM
-    t3
-)
-
 SELECT
-  date,
-  daily_revenue,
-  revenue_growth_abs,
-  COALESCE(
-    ROUND(
-      revenue_growth_abs :: DECIMAL / LAG(daily_revenue) OVER () :: DECIMAL * 100,
-      1
-    ),
-    0
-  ) AS revenue_growth_percentage
+  courier_id,
+  days_employed,
+  delivered_orders
 FROM
-  t4
+  (
+    SELECT
+      courier_id,
+      DATE_PART(
+        'day',
+        AGE(
+          (
+            SELECT
+              MAX(time)
+            FROM
+              courier_actions
+          ),
+          MIN(time)
+        )
+      ) AS days_employed,
+      COUNT(order_id) FILTER (
+        WHERE
+          action = 'deliver_order'
+      ) AS delivered_orders
+    FROM
+      courier_actions
+    GROUP BY
+      courier_id
+  ) AS t
+WHERE
+  days_employed > 9
 ORDER BY
-  date
+  days_employed DESC,
+  courier_id ASC
 
 -- OR
 
-SELECT date,
-       round(daily_revenue, 1) as daily_revenue,
-       round(coalesce(daily_revenue - lag(daily_revenue, 1) OVER (ORDER BY date), 0),
-             1) as revenue_growth_abs,
-       round(coalesce(round((daily_revenue - lag(daily_revenue, 1) OVER (ORDER BY date))::decimal / lag(daily_revenue, 1) OVER (ORDER BY date) * 100, 2), 0),
-             1) as revenue_growth_percentage
-FROM   (SELECT date(creation_time) as date,
-               sum(price) as daily_revenue
-        FROM   (SELECT order_id,
-                       creation_time,
-                       product_ids,
-                       unnest(product_ids) as product_id
-                FROM   orders
-                WHERE  order_id not in (SELECT order_id
-                                        FROM   user_actions
-                                        WHERE  action = 'cancel_order')) t1
-            LEFT JOIN products using(product_id)
-        GROUP BY date) t2
-ORDER BY date
+SELECT courier_id,
+       days_employed,
+       delivered_orders
+FROM   (SELECT courier_id,
+               delivered_orders,
+               date_part('days', max(max_time) OVER() - min_time) as days_employed
+        FROM   (SELECT courier_id,
+                       count(distinct order_id) filter (WHERE action = 'deliver_order') as delivered_orders,
+                       min(time) as min_time,
+                       max(time) as max_time
+                FROM   courier_actions
+                GROUP BY courier_id) t1) t2
+WHERE  days_employed >= 10
+ORDER BY days_employed desc, courier_id

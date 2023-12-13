@@ -1,54 +1,86 @@
 /*
-
+По таблицам courier_actions , orders и products определите 10 самых популярных товаров, доставленных в сентябре 2022 года.
+Самыми популярными товарами будем считать те, которые встречались в заказах чаще всего.
+Если товар встречается в одном заказе несколько раз (было куплено несколько единиц товара), то при подсчёте учитываем только одну единицу товара.
+Выведите наименования товаров и сколько раз они встречались в заказах. Новую колонку с количеством покупок товара назовите times_purchased. 
+Поля в результирующей таблице: name, times_purchased
 */
 
-WITH t1 AS (
+WITH table1 AS (
   SELECT
-    user_id,
-    COUNT(order_id) FILTER (
-      WHERE
-        action = 'cancel_order'
-    ) :: DECIMAL / count(order_id) FILTER (
-      WHERE
-        action = 'create_order'
-    ) :: DECIMAL AS cancel_rate
+    order_id
   FROM
-    user_actions
-  GROUP BY
-    user_id
-  ORDER BY
-    user_id asc
+    courier_actions
+  WHERE
+    action = 'deliver_order'
+    AND DATE_PART('year', time) = 2022
+    AND DATE_PART('month', time) = 09
 ),
-t2 AS (
+table2 AS (
   SELECT
-    user_id,
-    cancel_rate,
-    sex
+    order_id,
+    UNNEST(product_ids) AS product_id
   FROM
-    t1
-    LEFT JOIN users USING (user_id)
+    orders
+),
+table3 AS (
+  SELECT
+    DISTINCT *
+  FROM
+    table2
+  WHERE
+    order_id IN (
+      SELECT
+        *
+      FROM
+        table1
+    )
+),
+table4 AS (
+  SELECT
+    product_id,
+    COUNT(order_id) AS times_purchased
+  FROM
+    table3
+  GROUP BY
+    product_id
+  ORDER BY
+    times_purchased DESC
+  LIMIT
+    10
 )
 
 SELECT
-  COALESCE(sex, 'unknown') AS sex,
-  ROUND(AVG(cancel_rate), 3) AS avg_cancel_rate
+  name,
+  times_purchased
 FROM
-  t2
-GROUP BY
-  sex
+  products
+  RIGHT JOIN table4 USING (product_id)
 ORDER BY
-  sex
+  times_purchased DESC
 
 -- OR
 
-SELECT coalesce(sex, 'unknown') as sex,
-       round(avg(cancel_rate), 3) as avg_cancel_rate
-FROM   (SELECT user_id,
-               sex,
-               count(distinct order_id) filter (WHERE action = 'cancel_order')::decimal / count(distinct order_id) as cancel_rate
-        FROM   user_actions
-            LEFT JOIN users using(user_id)
-        GROUP BY user_id, sex
-        ORDER BY cancel_rate desc) t
-GROUP BY sex
-ORDER BY sex
+SELECT
+  name,
+  count(product_id) AS times_purchased
+FROM
+  (
+    SELECT
+      DISTINCT order_id,
+      unnest(product_ids) AS product_id
+    FROM
+      orders
+  ) AS t
+  LEFT JOIN products USING (product_id)
+  RIGHT JOIN courier_actions USING (order_id)
+WHERE
+  action = 'deliver_order'
+  AND date_part('month', time) = 9
+  AND date_part('year', time) = 2022
+GROUP BY
+  name
+ORDER BY
+  times_purchased DESC
+LIMIT
+  10

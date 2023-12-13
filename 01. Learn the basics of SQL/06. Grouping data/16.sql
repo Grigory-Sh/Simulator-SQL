@@ -1,34 +1,21 @@
 /*
-Разбейте пользователей из таблицы users на 4 возрастные группы:
-от 19 до 24 лет;
-от 25 до 29 лет;
-от 30 до 35 лет;
-от 36 до 41 года.
-Посчитайте число пользователей, попавших в каждую возрастную группу.
-Группы назовите соответственно «19-24», «25-29», «30-35», «36-41» (без кавычек).
-Выведите наименования групп и число пользователей в них. Колонку с наименованием
-групп назовите group_age, а колонку с числом пользователей — users_count.
-Отсортируйте полученную таблицу по колонке с наименованием групп по возрастанию.
-Поля в результирующей таблице: group_age, users_count
+По данным из таблицы orders рассчитайте средний размер заказа по выходным и по будням.
+Группу с выходными днями (суббота и воскресенье) назовите «weekend», а группу с будними днями (с понедельника по пятницу) — «weekdays» (без кавычек).
+В результат включите две колонки: колонку с группами назовите week_part, а колонку со средним размером заказа — avg_order_size. 
+Средний размер заказа округлите до двух знаков после запятой.
+Результат отсортируйте по колонке со средним размером заказа — по возрастанию.
+Поля в результирующей таблице: week_part, avg_order_size
 */
 
 SELECT
   CASE
-    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 19
-    AND 24 THEN '19-24'
-    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 25
-    AND 29 THEN '25-29'
-    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 30
-    AND 35 THEN '30-35'
-    WHEN DATE_PART('year', AGE(current_date, birth_date)) BETWEEN 36
-    AND 41 THEN '36-41'
-  END AS group_age,
-  COUNT(DISTINCT user_id) AS users_count
+    WHEN DATE_PART('isodow', creation_time) < 6 THEN 'weekdays'
+    ELSE 'weekend'
+  END AS week_part,
+  ROUND(AVG(ARRAY_LENGTH(product_ids, 1)), 2) AS avg_order_size
 FROM
-  users
-WHERE
-  birth_date IS NOT NULL
+  orders
 GROUP BY
-  group_age
+  week_part
 ORDER BY
-  group_age
+  avg_order_size
